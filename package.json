@@ -1,0 +1,40 @@
+{
+  "name": "studi",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "security:check": "node scripts/security-check.js",
+    "crud:check": "node scripts/crud-check.js",
+    "migrate": "node node_modules/sequelize-cli/lib/sequelize db:migrate",
+    "migrate:undo": "node node_modules/sequelize-cli/lib/sequelize db:migrate:undo",
+    "seed": "node node_modules/sequelize-cli/lib/sequelize db:seed:all"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^1.41.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "joi": "^18.1.2",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.1",
+    "multer": "^2.1.1",
+    "multer-storage-cloudinary": "^4.0.0",
+    "mysql2": "^3.22.2",
+    "nodemailer": "^8.0.5",
+    "sequelize": "^6.37.8",
+    "sequelize-cli": "^6.6.5",
+    "slugify": "^1.6.9"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
