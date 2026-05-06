@@ -1,10 +1,16 @@
 'use strict';
 
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 const { sanitizeString, isValidEmail, isStrongPassword } = require('../utils/validator');
 const { resetLoginAttempts } = require('../middleware/rateLimiter');
+const {
+  generateAccessToken,
+  createRefreshToken,
+  verifyRefreshToken,
+  revokeRefreshToken,
+  revokeAllRefreshTokens,
+} = require('../services/tokenService');
 
 const SALT_ROUNDS = 12; // cost factor bcrypt — cukup lambat untuk brute force
 
@@ -85,17 +91,23 @@ exports.login = async (req, res, next) => {
     const ip = req.ip || req.connection.remoteAddress;
     resetLoginAttempts(ip, email);
 
-    // Sign JWT — payload minimal, jangan taruh data sensitif
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '8h', algorithm: 'HS256' }
-    );
+    // Generate access token (15 menit) + refresh token (7 hari, disimpan di DB)
+    const accessToken = generateAccessToken(user);
+    const refreshToken = await createRefreshToken(user.id);
+
+    // Kirim refresh token via httpOnly cookie (tidak bisa dibaca JS di browser)
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // HTTPS only di production
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 hari
+    });
 
     return res.json({
       success: true,
       message: 'Login berhasil.',
-      token,
+      access_token: accessToken,
+      expires_in: 900, // detik — 15 menit
       data: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
   } catch (err) {
@@ -149,6 +161,81 @@ exports.forgotPassword = async (req, res, next) => {
 
     return res.json({ success: true, message: 'Jika email terdaftar, link reset akan dikirim.' });
   } catch (err) { next(err); }
+};
+
+// POST /api/auth/refresh
+// Gunakan refresh token dari cookie → dapat access token baru
+exports.refresh = async (req, res, next) => {
+  try {
+    // Baca dari cookie (aman, tidak kena XSS)
+    const token = req.cookies?.refresh_token;
+
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Refresh token tidak ditemukan.' });
+    }
+
+    const record = await verifyRefreshToken(token);
+    if (!record) {
+      // Bersihkan cookie jika token tidak valid
+      res.clearCookie('refresh_token');
+      return res.status(401).json({ success: false, message: 'Refresh token tidak valid atau sudah kadaluarsa.' });
+    }
+
+    // Ambil data user terbaru dari DB (role bisa berubah sejak login)
+    const user = await User.findByPk(record.user_id);
+    if (!user) {
+      await revokeRefreshToken(token);
+      res.clearCookie('refresh_token');
+      return res.status(401).json({ success: false, message: 'User tidak ditemukan.' });
+    }
+
+    // Rotate refresh token — token lama dihapus, buat yang baru (lebih aman)
+    await revokeRefreshToken(token);
+    const newRefreshToken = await createRefreshToken(user.id);
+    const newAccessToken = generateAccessToken(user);
+
+    res.cookie('refresh_token', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.json({
+      success: true,
+      access_token: newAccessToken,
+      expires_in: 900,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/auth/logout
+exports.logout = async (req, res, next) => {
+  try {
+    const token = req.cookies?.refresh_token;
+
+    if (token) {
+      await revokeRefreshToken(token); // hapus dari DB
+    }
+
+    res.clearCookie('refresh_token');
+    return res.json({ success: true, message: 'Logout berhasil.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/auth/logout-all  (logout semua device)
+exports.logoutAll = async (req, res, next) => {
+  try {
+    await revokeAllRefreshTokens(req.user.id); // req.user dari middleware authenticate
+    res.clearCookie('refresh_token');
+    return res.json({ success: true, message: 'Logout dari semua perangkat berhasil.' });
+  } catch (err) {
+    next(err);
+  }
 };
 
 // POST /api/auth/reset-password/:token

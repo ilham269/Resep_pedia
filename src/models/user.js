@@ -7,6 +7,7 @@ module.exports = (sequelize, DataTypes) => {
       User.hasMany(models.Recipe, { foreignKey: 'author_id', as: 'recipes' });
       User.hasMany(models.Rating, { foreignKey: 'user_id', as: 'ratings' });
       User.belongsToMany(models.Recipe, { through: models.SavedRecipe, foreignKey: 'user_id', as: 'savedRecipes' });
+      User.hasMany(models.RefreshToken, { foreignKey: 'user_id', as: 'refreshTokens' });
     }
   }
 
