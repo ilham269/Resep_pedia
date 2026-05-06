@@ -8,6 +8,7 @@
     "start": "node server.js",
     "security:check": "node scripts/security-check.js",
     "crud:check": "node scripts/crud-check.js",
+    "fetch:youtube": "node scripts/fetch-youtube.js",
     "migrate": "node node_modules/sequelize-cli/lib/sequelize db:migrate",
     "migrate:undo": "node node_modules/sequelize-cli/lib/sequelize db:migrate:undo",
     "seed": "node node_modules/sequelize-cli/lib/sequelize db:seed:all"

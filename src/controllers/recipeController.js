@@ -120,8 +120,19 @@ exports.getBySlug = async (req, res, next) => {
 // POST /api/recipes
 exports.create = async (req, res, next) => {
   try {
-    const { title, description, category_id, region_id, country_id,
+    let { title, description, category_id, region_id, country_id,
       prep_time, cook_time, servings, difficulty, ingredients, steps, tags } = req.body;
+
+    // Parse JSON strings dari FormData
+    if (typeof ingredients === 'string') {
+      try { ingredients = JSON.parse(ingredients); } catch { ingredients = []; }
+    }
+    if (typeof steps === 'string') {
+      try { steps = JSON.parse(steps); } catch { steps = []; }
+    }
+    if (typeof tags === 'string') {
+      try { tags = JSON.parse(tags); } catch { tags = []; }
+    }
 
     let cover_image_url = null;
     if (req.file) {
@@ -138,10 +149,28 @@ exports.create = async (req, res, next) => {
 
     // Bulk create ingredients & steps
     if (ingredients?.length) {
-      await Ingredient.bulkCreate(ingredients.map(i => ({ ...i, recipe_id: recipe.id })));
+      await Ingredient.bulkCreate(ingredients.map(i => {
+        const amount = parseFloat(i.amount);
+        return {
+          recipe_id: recipe.id,
+          name: i.name,
+          amount: !isNaN(amount) ? amount : null,
+          unit: i.unit || null,
+          notes: i.notes || null,
+        };
+      }));
     }
     if (steps?.length) {
-      await Step.bulkCreate(steps.map(s => ({ ...s, recipe_id: recipe.id })));
+      await Step.bulkCreate(steps.map(s => {
+        const duration = parseInt(s.duration_minutes);
+        return {
+          recipe_id: recipe.id,
+          step_number: s.step_number,
+          instruction: s.instruction,
+          duration_minutes: !isNaN(duration) ? duration : null,
+          image_url: s.image_url || null,
+        };
+      }));
     }
 
     // Tags

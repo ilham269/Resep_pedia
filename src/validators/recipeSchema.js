@@ -15,7 +15,7 @@ const recipeSchema = Joi.object({
   ingredients: Joi.array().items(
     Joi.object({
       name: Joi.string().required(),
-      amount: Joi.number().optional().allow(null),
+      amount: Joi.alternatives().try(Joi.number(), Joi.string().allow('', null)).optional(),
       unit: Joi.string().optional().allow('', null),
       notes: Joi.string().optional().allow('', null),
     })
